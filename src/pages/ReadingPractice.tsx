@@ -1,16 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { generateIELTSPassage } from "@/lib/ieltsPassageGenerator";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { format } from "date-fns";
+import { saveReadingPractice, getUserReadingPractices } from "@/lib/firebase";
 
 const ReadingPractice = () => {
+  const { currentUser } = useAuth();
+  
   const [passage, setPassage] = useState<PassageWithHeadings | null>(null);
   const [activeTab, setActiveTab] = useState("read");
   const [isLoading, setIsLoading] = useState(false);
@@ -19,6 +32,45 @@ const ReadingPractice = () => {
   const [showAnswers, setShowAnswers] = useState(false);
   const [gapFillAnswers, setGapFillAnswers] = useState<string[]>([]);
   const [showGapFillAnswers, setShowGapFillAnswers] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [savedPractices, setSavedPractices] = useState<any[]>([]);
+  const [isLoadingPractices, setIsLoadingPractices] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load saved practices from Firebase when component mounts
+  useEffect(() => {
+    if (currentUser) {
+      loadSavedPractices();
+    }
+  }, [currentUser]);
+
+  const loadSavedPractices = async () => {
+    if (!currentUser) return;
+    
+    setIsLoadingPractices(true);
+    try {
+      const practices = await getUserReadingPractices(currentUser.uid);
+      setSavedPractices(practices);
+    } catch (error) {
+      console.error("Error loading saved practices:", error);
+      toast.error("Failed to load saved practices");
+    } finally {
+      setIsLoadingPractices(false);
+    }
+  };
+
+  const handleLoadPractice = (savedPractice: any) => {
+    try {
+      setPassage(savedPractice.passage);
+      setSelectedHeadings(savedPractice.userProgress.selectedHeadings);
+      setGapFillAnswers(savedPractice.userProgress.gapFillAnswers);
+      setDifficulty(savedPractice.difficulty);
+      toast.success("Practice loaded successfully!");
+    } catch (error) {
+      console.error("Error loading practice:", error);
+      toast.error("Failed to load practice");
+    }
+  };
 
   const handleDifficultyChange = (value: string) => {
     setDifficulty(value);
@@ -40,40 +92,145 @@ const ReadingPractice = () => {
     }
   };
 
+  const handleSavePractice = async () => {
+    if (!passage || !currentUser) return;
+
+    setIsSaving(true);
+    try {
+      const practiceData = {
+        userId: currentUser.uid,
+        difficulty,
+        passage: {
+          paragraphs: passage.paragraphs,
+          headings: passage.headings,
+          correctHeadings: passage.correctHeadings
+        },
+        userProgress: {
+          selectedHeadings,
+          gapFillAnswers
+        }
+      };
+
+      await saveReadingPractice(currentUser.uid, practiceData);
+      await loadSavedPractices(); // Reload the list
+      setIsSaved(true);
+      toast.success("Practice saved successfully!");
+    } catch (error) {
+      console.error("Error saving practice:", error);
+      toast.error("Failed to save practice");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <div className="mb-6 space-y-4">
         <h1 className="text-2xl font-bold">IELTS Reading Practice</h1>
         
-        <div className="flex gap-4 items-center">
-          <Select value={difficulty} onValueChange={handleDifficultyChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select difficulty" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="beginner">Beginner</SelectItem>
-              <SelectItem value="intermediate">Intermediate</SelectItem>
-              <SelectItem value="advanced">Advanced</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex gap-4 items-center justify-between">
+          <div className="flex gap-4 items-center">
+            <Select value={difficulty} onValueChange={handleDifficultyChange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select difficulty" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beginner">Beginner</SelectItem>
+                <SelectItem value="intermediate">Intermediate</SelectItem>
+                <SelectItem value="advanced">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Button 
-            onClick={handleGeneratePassage}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4" />
-                Generate Passage
-              </>
+            <Button 
+              onClick={handleGeneratePassage}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Generate Passage
+                </>
+              )}
+            </Button>
+
+            {currentUser && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4" />
+                    Open Saved
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[525px]">
+                  <DialogHeader>
+                    <DialogTitle>Saved Reading Practices</DialogTitle>
+                  </DialogHeader>
+                  <ScrollArea className="h-[400px] pr-4">
+                    {isLoadingPractices ? (
+                      <div className="flex justify-center items-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    ) : savedPractices.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">
+                        No saved practices found
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {savedPractices.map((practice) => (
+                          <Card
+                            key={practice.id}
+                            className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => handleLoadPractice(practice)}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-medium">
+                                  {format(practice.createdAt.toDate(), 'PPP')}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Difficulty: {practice.difficulty}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {practice.passage.paragraphs[0].substring(0, 100)}...
+                            </p>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
             )}
-          </Button>
+          </div>
+
+          {passage && (
+            <Button
+              variant="outline"
+              onClick={handleSavePractice}
+              disabled={isSaving || isSaved || !currentUser}
+              className="flex items-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  {isSaved ? "Saved" : "Save Practice"}
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 

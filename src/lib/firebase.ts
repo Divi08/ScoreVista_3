@@ -366,3 +366,43 @@ export const onAuthChange = (callback: (user: User | null) => void) => {
 };
 
 export { auth, db };
+
+export const saveReadingPractice = async (userId: string, practiceData: any) => {
+  try {
+    const practicesCollectionRef = collection(db, "users", userId, "readingPractices");
+    const newPracticeRef = doc(practicesCollectionRef);
+    
+    const practiceWithId = {
+      ...practiceData,
+      id: newPracticeRef.id,
+      createdAt: Timestamp.now()
+    };
+    
+    await setDoc(newPracticeRef, practiceWithId);
+    return newPracticeRef.id;
+  } catch (error) {
+    console.error("Error saving reading practice:", error);
+    throw error;
+  }
+};
+
+export const getUserReadingPractices = async (userId: string) => {
+  try {
+    const practicesCollectionRef = collection(db, "users", userId, "readingPractices");
+    const q = query(practicesCollectionRef, orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
+    
+    const practices: DocumentData[] = [];
+    querySnapshot.forEach((doc) => {
+      practices.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    return practices;
+  } catch (error) {
+    console.error("Error getting reading practices:", error);
+    throw error;
+  }
+};
