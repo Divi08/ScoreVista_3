@@ -64,7 +64,7 @@ const App = () => (
               <Route path="progress" element={<RevisionChallenges />} />
               <Route path="history" element={<ModelAnswers />} />
               <Route path="settings" element={<Settings />} />
-              <Route path="exercise/:exerciseId" element={<ExerciseDetail />} />
+              <Route path="/dashboard/exercise/:exerciseId" element={<ExerciseDetail />} />
               <Route path="compare-revisions" element={<CompareRevisions />} />
             </Route>
             

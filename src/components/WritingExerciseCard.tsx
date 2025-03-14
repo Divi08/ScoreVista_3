@@ -85,7 +85,7 @@ const WritingExerciseCard = ({
       </div>
       
       <div className="mt-auto">
-        <Link to={`/writing-exercises/${id}`} onClick={onClick}>
+        <Link to={`/dashboard/exercise/${id}`} onClick={onClick}>
           <Button variant="outline" className="w-full">
             Start Exercise
             <ArrowRight className="w-4 h-4 ml-2" />

@@ -24,6 +24,7 @@ import TextEditor from "@/components/TextEditor";
 import AnalysisPanel from "@/components/AnalysisPanel";
 import BarChartComponent from "@/components/BarChartComponent";
 import { toast } from "sonner";
+import { exercisesData } from './WritingExercises';
 
 // Coffee consumption data for the bar chart exercise
 const coffeeConsumptionData = [
@@ -101,81 +102,6 @@ const internetUsageData = [
     "2020": 75,
     color: "#8dd1e1"
   }
-];
-
-// This would ideally come from an API or database
-const exercisesData = [
-  {
-    id: "task1-bar-chart",
-    title: "Bar Chart Analysis",
-    description: "Analyze and describe the data presented in a bar chart showing global coffee consumption.",
-    type: "task1" as const,
-    timeLimit: 20,
-    difficulty: "beginner" as const,
-    tags: ["bar chart", "comparison"],
-    image: "coffee-consumption.png",
-    prompt: "The chart below shows the coffee consumption in five different countries over the past three decades. Summarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    chartData: coffeeConsumptionData,
-    chartType: "bar",
-    xAxisLabel: "Countries",
-    yAxisLabel: "Cups per day (average)"
-  },
-  {
-    id: "task2-education",
-    title: "Technology in Education",
-    description: "To what extent do you agree that technology has improved the quality of education?",
-    type: "task2" as const,
-    timeLimit: 40,
-    difficulty: "intermediate" as const,
-    tags: ["agree/disagree", "education", "technology"],
-    prompt: "Many people believe that technology has significantly improved the quality of education. To what extent do you agree or disagree with this statement? Give reasons for your answer and include any relevant examples from your own knowledge or experience."
-  },
-  {
-    id: "task1-process",
-    title: "Process Diagram",
-    description: "Describe the process of coffee production from harvesting to packaging.",
-    type: "task1" as const,
-    timeLimit: 20,
-    difficulty: "intermediate" as const,
-    tags: ["process", "sequence"],
-    image: "coffee-production.png",
-    prompt: "The diagram illustrates the process of coffee production from harvesting to packaging. Summarize the information by selecting and reporting the main features, and make comparisons where relevant."
-  },
-  {
-    id: "task2-environment",
-    title: "Environmental Challenges",
-    description: "Many environmental problems are too big for individual countries to solve. To what extent do you agree?",
-    type: "task2" as const,
-    timeLimit: 40,
-    difficulty: "advanced" as const,
-    tags: ["environment", "global issues"],
-    prompt: "Many environmental problems are too big for individual countries to solve alone. To what extent do you agree or disagree with this statement? Give reasons for your answer and include any relevant examples from your own knowledge or experience."
-  },
-  {
-    id: "task1-line-graph",
-    title: "Line Graph Analysis",
-    description: "Analyze trends in global internet usage across different regions over time.",
-    type: "task1" as const,
-    timeLimit: 20,
-    difficulty: "beginner" as const,
-    tags: ["line graph", "trends"],
-    image: "internet-usage.png",
-    prompt: "The graph below shows internet usage per capita in different regions of the world between 2000 and 2020. Summarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    chartData: internetUsageData,
-    chartType: "bar",
-    xAxisLabel: "Regions",
-    yAxisLabel: "Internet Users (%)"
-  },
-  {
-    id: "task2-urbanization",
-    title: "Urbanization Issues",
-    description: "Discuss the problems caused by rapid urbanization in many major cities worldwide.",
-    type: "task2" as const,
-    timeLimit: 40,
-    difficulty: "advanced" as const,
-    tags: ["urbanization", "problems"],
-    prompt: "In many major cities around the world, rapid urbanization has led to significant social and environmental problems. Discuss some of these problems and suggest possible solutions."
-  },
 ];
 
 type ExerciseStatus = "not-started" | "in-progress" | "submitted" | "feedback";
