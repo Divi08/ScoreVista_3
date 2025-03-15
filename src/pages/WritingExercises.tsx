@@ -17,71 +17,26 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-// Writing exercise database
-const exercisesData = [
+export const exercisesData = [
   {
-    id: "task1-bar-chart",
-    title: "Bar Chart Analysis",
-    description: "Analyze and describe the data presented in a bar chart showing global coffee consumption.",
-    type: "task1" as const,
+    id: 'task1-1',
+    title: 'Graph Analysis',
+    description: 'Describe the trends shown in the line graph about global temperature changes.',
+    type: 'task1',
     timeLimit: 20,
-    difficulty: "beginner" as const,
-    tags: ["bar chart", "comparison"],
-    image: "coffee-consumption.png",
-    prompt: "The chart below shows the coffee consumption in five different countries over the past three decades. Summarize the information by selecting and reporting the main features, and make comparisons where relevant."
+    difficulty: 'intermediate',
+    tags: ['graphs', 'climate', 'academic'],
   },
   {
-    id: "task2-education",
-    title: "Technology in Education",
-    description: "To what extent do you agree that technology has improved the quality of education?",
-    type: "task2" as const,
+    id: 'task2-1',
+    title: 'Technology Impact',
+    description: 'Discuss the positive and negative effects of technology on modern society.',
+    type: 'task2',
     timeLimit: 40,
-    difficulty: "intermediate" as const,
-    tags: ["agree/disagree", "education", "technology"],
-    prompt: "Many people believe that technology has significantly improved the quality of education. To what extent do you agree or disagree with this statement? Give reasons for your answer and include any relevant examples from your own knowledge or experience."
+    difficulty: 'advanced',
+    tags: ['technology', 'society', 'opinion'],
   },
-  {
-    id: "task1-process",
-    title: "Process Diagram",
-    description: "Describe the process of coffee production from harvesting to packaging.",
-    type: "task1" as const,
-    timeLimit: 20,
-    difficulty: "intermediate" as const,
-    tags: ["process", "sequence"],
-    image: "coffee-production.png",
-    prompt: "The diagram illustrates the process of coffee production from harvesting to packaging. Summarize the information by selecting and reporting the main features, and make comparisons where relevant."
-  },
-  {
-    id: "task2-environment",
-    title: "Environmental Challenges",
-    description: "Many environmental problems are too big for individual countries to solve. To what extent do you agree?",
-    type: "task2" as const,
-    timeLimit: 40,
-    difficulty: "advanced" as const,
-    tags: ["environment", "global issues"],
-    prompt: "Many environmental problems are too big for individual countries to solve alone. To what extent do you agree or disagree with this statement? Give reasons for your answer and include any relevant examples from your own knowledge or experience."
-  },
-  {
-    id: "task1-line-graph",
-    title: "Line Graph Analysis",
-    description: "Analyze trends in global internet usage across different regions over time.",
-    type: "task1" as const,
-    timeLimit: 20,
-    difficulty: "beginner" as const,
-    tags: ["line graph", "trends"],
-    image: "internet-usage.png",
-    prompt: "The graph below shows internet usage per capita in different regions of the world between 2000 and 2020. Summarize the information by selecting and reporting the main features, and make comparisons where relevant."
-  },
-  {
-    id: "task2-urbanization",
-    title: "Urbanization Issues",
-    description: "Discuss the problems caused by rapid urbanization in many major cities worldwide.",
-    type: "task2" as const,
-    timeLimit: 40,
-    difficulty: "advanced" as const,
-    tags: ["urbanization", "problems"],
-    prompt: "In many major cities around the world, rapid urbanization has led to significant social and environmental problems. Discuss some of these problems and suggest possible solutions."
-  },
+  // Add more exercises as needed
 ];
 
 // Revision tools database - updated with actual paths

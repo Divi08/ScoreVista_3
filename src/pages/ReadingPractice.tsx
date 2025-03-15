@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { generateIELTSPassage } from "@/lib/ieltsPassageGenerator";
-import { Loader2, RefreshCw, Save, FolderOpen } from "lucide-react";
+import { Loader2, RefreshCw, Save, FolderOpen, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { saveReadingPractice, getUserReadingPractices } from "@/lib/firebase";
+import { saveReadingPractice, getUserReadingPractices, deleteReadingPractice } from "@/lib/firebase";
 
 const ReadingPractice = () => {
   const { currentUser } = useAuth();
@@ -36,6 +36,11 @@ const ReadingPractice = () => {
   const [savedPractices, setSavedPractices] = useState<any[]>([]);
   const [isLoadingPractices, setIsLoadingPractices] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [gapFillQuestions, setGapFillQuestions] = useState<Array<{
+    excerpt: string;
+    correctAnswer: string;
+    options: string[];
+  }>>([]);
 
   // Load saved practices from Firebase when component mounts
   useEffect(() => {
@@ -65,6 +70,7 @@ const ReadingPractice = () => {
       setSelectedHeadings(savedPractice.userProgress.selectedHeadings);
       setGapFillAnswers(savedPractice.userProgress.gapFillAnswers);
       setDifficulty(savedPractice.difficulty);
+      setIsSaved(false); // Reset saved state when loading a practice
       toast.success("Practice loaded successfully!");
     } catch (error) {
       console.error("Error loading practice:", error);
@@ -74,6 +80,7 @@ const ReadingPractice = () => {
 
   const handleDifficultyChange = (value: string) => {
     setDifficulty(value);
+    setIsSaved(false); // Reset saved state when difficulty changes
   };
 
   const handleGeneratePassage = async () => {
@@ -83,6 +90,7 @@ const ReadingPractice = () => {
       setPassage(generated);
       setSelectedHeadings(new Array(7).fill(""));
       setShowAnswers(false);
+      setIsSaved(false); // Reset saved state when new passage is generated
       toast.success("New passage generated successfully!");
     } catch (error) {
       console.error("Error generating passage:", error);
@@ -122,6 +130,59 @@ const ReadingPractice = () => {
       setIsSaving(false);
     }
   };
+
+  const handleDeletePractice = async (practiceId: string) => {
+    if (!currentUser) return;
+    
+    try {
+      await deleteReadingPractice(currentUser.uid, practiceId);
+      await loadSavedPractices(); // Reload the list
+      toast.success("Practice deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting practice:", error);
+      toast.error("Failed to delete practice");
+    }
+  };
+
+  useEffect(() => {
+    if (passage) {
+      const questions = passage.paragraphs.slice(0, 5).map(paragraph => {
+        // Extract first 1-2 sentences
+        const sentences = paragraph.match(/[^.!?]+[.!?]+/g) || [];
+        const excerpt = sentences.slice(0, 2).join(' ');
+        
+        // Create a gap by removing a content word
+        const words = excerpt.split(' ');
+        const contentWords = words.filter(word => 
+          word.length > 4 && 
+          !['however', 'therefore', 'because', 'although'].includes(word.toLowerCase()) &&
+          !/[^a-zA-Z]/.test(word)
+        );
+        
+        const correctAnswer = contentWords[Math.floor(Math.random() * contentWords.length)];
+        
+        // Generate options including the correct answer
+        const otherOptions = contentWords
+          .filter(w => w !== correctAnswer)
+          .slice(0, 3);
+        
+        const options = [correctAnswer, ...otherOptions]
+          .sort(() => Math.random() - 0.5);
+
+        const questionExcerpt = excerpt.replace(correctAnswer, '[_____]');
+
+        return {
+          excerpt: questionExcerpt,
+          correctAnswer,
+          options
+        };
+      });
+
+      setGapFillQuestions(questions);
+      setGapFillAnswers(new Array(questions.length).fill(''));
+      setShowGapFillAnswers(false);
+    }
+  }, [passage]);
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">
@@ -183,25 +244,34 @@ const ReadingPractice = () => {
                     ) : (
                       <div className="space-y-4">
                         {savedPractices.map((practice) => (
-                          <Card
+                          <div
                             key={practice.id}
-                            className="p-4 cursor-pointer hover:bg-accent transition-colors"
-                            onClick={() => handleLoadPractice(practice)}
+                            className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
                           >
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <p className="font-medium">
-                                  {format(practice.createdAt.toDate(), 'PPP')}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Difficulty: {practice.difficulty}
-                                </p>
-                              </div>
+                            <div 
+                              className="flex-1 cursor-pointer"
+                              onClick={() => handleLoadPractice(practice)}
+                            >
+                              <p className="font-medium">
+                                {format(practice.createdAt.toDate(), 'PPP')}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Difficulty: {practice.difficulty}
+                              </p>
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                                {practice.passage.paragraphs[0].substring(0, 100)}...
+                              </p>
                             </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2">
-                              {practice.passage.paragraphs[0].substring(0, 100)}...
-                            </p>
-                          </Card>
+                            
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="ml-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDeletePractice(practice.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -314,69 +384,43 @@ const ReadingPractice = () => {
                 <div className="bg-muted p-4 rounded-lg">
                   <h2 className="text-xl font-semibold mb-2">Fill in the Blanks</h2>
                   <p className="text-muted-foreground">
-                    Select the correct word to complete each sentence from the passage.
+                    Choose the correct word to complete each sentence.
                   </p>
                 </div>
 
-                {passage?.paragraphs.slice(0, 5).map((paragraph, index) => {
-                  // Extract first 1-2 sentences from the paragraph
-                  const sentences = paragraph.match(/[^.!?]+[.!?]+/g) || [];
-                  const excerpt = sentences.slice(0, 2).join(' ');
-                  
-                  // Create a gap by removing a content word
-                  const words = excerpt.split(' ');
-                  const contentWords = words.filter(word => 
-                    word.length > 4 && 
-                    !['however', 'therefore', 'because', 'although'].includes(word.toLowerCase())
-                  );
-                  const wordToReplace = contentWords[Math.floor(Math.random() * contentWords.length)];
-                  const gapIndex = words.findIndex(w => w === wordToReplace);
-                  
-                  // Generate options including the correct word
-                  const options = [
-                    wordToReplace,
-                    ...contentWords.filter(w => w !== wordToReplace).slice(0, 3)
-                  ].slice(0, 4).sort(() => Math.random() - 0.5);
+                {gapFillQuestions.map((question, index) => (
+                  <Card key={index} className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <span className="font-bold text-lg">{index + 1}.</span>
+                        <p className="text-lg">{question.excerpt}</p>
+                      </div>
 
-                  const sentenceWithGap = [
-                    ...words.slice(0, gapIndex),
-                    '[_____]',
-                    ...words.slice(gapIndex + 1)
-                  ].join(' ');
-
-                  return (
-                    <Card key={index} className="p-6">
-                      <div className="space-y-4">
-                        <div className="flex items-start gap-3">
-                          <span className="font-bold text-lg">{index + 1}.</span>
-                          <p className="text-lg">{sentenceWithGap}</p>
-                        </div>
-
-                        <RadioGroup
-                          className="gap-3"
-                          value={gapFillAnswers[index]}
-                          onValueChange={(value) => {
-                            const newAnswers = [...gapFillAnswers];
-                            newAnswers[index] = value;
-                            setGapFillAnswers(newAnswers);
-                          }}
-                          disabled={showGapFillAnswers}
-                        >
-                          {options.map((option, optionIndex) => (
+                      <RadioGroup
+                        value={gapFillAnswers[index] || ""}
+                        onValueChange={(value) => {
+                          const newAnswers = [...gapFillAnswers];
+                          newAnswers[index] = value;
+                          setGapFillAnswers(newAnswers);
+                        }}
+                        disabled={showGapFillAnswers}
+                      >
+                        <div className="space-y-2">
+                          {question.options.map((option, optionIndex) => (
                             <div key={optionIndex} className="flex items-center space-x-2">
                               <RadioGroupItem 
                                 value={option} 
                                 id={`option-${index}-${optionIndex}`}
                               />
                               <Label 
-                                htmlFor={`option-${index}-${optionIndex}`} 
-                                className="text-base"
+                                htmlFor={`option-${index}-${optionIndex}`}
+                                className="text-base cursor-pointer"
                               >
                                 {option}
                               </Label>
                               {showGapFillAnswers && (
                                 <span className="ml-2">
-                                  {option === wordToReplace ? (
+                                  {option === question.correctAnswer ? (
                                     <CheckCircle2 className="h-5 w-5 text-green-500" />
                                   ) : (
                                     <XCircle className="h-5 w-5 text-red-500" />
@@ -385,30 +429,30 @@ const ReadingPractice = () => {
                               )}
                             </div>
                           ))}
-                        </RadioGroup>
+                        </div>
+                      </RadioGroup>
 
-                        {showGapFillAnswers && (
-                          <div className={`mt-4 p-3 rounded-md ${
-                            gapFillAnswers[index] === wordToReplace 
-                              ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
-                              : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                          }`}>
-                            <p className="font-medium">
-                              {gapFillAnswers[index] === wordToReplace 
-                                ? "Correct!" 
-                                : `Incorrect. The correct answer is: ${wordToReplace}`}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  );
-                })}
+                      {showGapFillAnswers && (
+                        <div className={`mt-4 p-3 rounded-md ${
+                          gapFillAnswers[index] === question.correctAnswer 
+                            ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                            : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                        }`}>
+                          <p className="font-medium">
+                            {gapFillAnswers[index] === question.correctAnswer 
+                              ? "Correct!" 
+                              : `Incorrect. The correct answer is: ${question.correctAnswer}`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
 
                 <div className="flex justify-center mt-6">
                   <Button
                     onClick={() => setShowGapFillAnswers(true)}
-                    disabled={gapFillAnswers.length !== 5 || showGapFillAnswers}
+                    disabled={gapFillAnswers.filter(Boolean).length < 5 || showGapFillAnswers}
                     size="lg"
                   >
                     Check Answers
@@ -420,9 +464,7 @@ const ReadingPractice = () => {
                     <h3 className="font-semibold mb-2">Your Score</h3>
                     <p className="text-lg">
                       {gapFillAnswers.filter((answer, index) => 
-                        answer === passage?.paragraphs[index].split(' ')[
-                          Math.floor(passage?.paragraphs[index].split(' ').length / 2)
-                        ]
+                        answer === gapFillQuestions[index].correctAnswer
                       ).length} out of 5 correct
                     </p>
                   </div>

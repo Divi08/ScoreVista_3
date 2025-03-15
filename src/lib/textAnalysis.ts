@@ -3,45 +3,199 @@ import { getGeminiFeedback, parseGeminiFeedback } from './geminiApi';
 
 // Function to analyze text and provide feedback
 export const analyzeText = async (text: string): Promise<TextAnalysisResult> => {
-  // Get feedback from Gemini
-  const geminiFeedback = await getGeminiFeedback(text);
-  console.log("Generated feedback from Gemini:", geminiFeedback.substring(0, 100) + "...");
-  
-  // Parse Gemini feedback to get structured data
-  const parsedGeminiFeedback = parseGeminiFeedback(geminiFeedback);
-  
-  // Create text blocks with AI-improved detection
-  const blocks = createTextBlocks(text, parsedGeminiFeedback.correctedText || "");
-  
-  // Generate metrics based on the blocks and Gemini feedback
-  const metrics = calculateTextMetrics(blocks, parsedGeminiFeedback.errorAnalysis || "", parsedGeminiFeedback.assessment || "");
-  
-  // Calculate overall score - give more weight to the IELTS band from Gemini
-  let overallScore = calculateOverallScore(metrics);
-  
-  // If Gemini provided an IELTS band score, adjust our overall score
-  if (parsedGeminiFeedback.estimatedIELTSBand) {
-    console.log("Estimated IELTS band from Gemini:", parsedGeminiFeedback.estimatedIELTSBand);
-    
-    // IELTS is 1-9, our score is 0-100, scale accordingly
-    const adjustedScore = Math.round((parsedGeminiFeedback.estimatedIELTSBand / 9) * 100);
-    
-    // Blend our score with the Gemini-derived score (give more weight to Gemini)
-    overallScore = Math.round((overallScore * 0.2) + (adjustedScore * 0.8));
-    
-    console.log("Adjusted overall score:", overallScore);
-  }
+  try {
+    // Input validation with detailed logging
+    if (!text || typeof text !== 'string') {
+      console.error("Input validation failed:", { text, type: typeof text });
+      throw new Error('Invalid input: Text must be a non-empty string');
+    }
+    console.log("Input validation passed, text length:", text.length);
 
-  return {
-    blocks,
-    metrics: {
-      ...metrics,
-      ieltsEstimate: parsedGeminiFeedback.estimatedIELTSBand || undefined,
-      professorFeedback: geminiFeedback,
-    },
-    overallScore,
-    ieltsFeedback: parsedGeminiFeedback.fullFeedback,
-  };
+    // Get feedback from Gemini with error handling
+    let geminiFeedback;
+    try {
+      console.log("Requesting Gemini feedback...");
+      geminiFeedback = await getGeminiFeedback(text);
+      if (!geminiFeedback) {
+        throw new Error("Gemini returned empty feedback");
+      }
+      console.log("Gemini feedback received successfully, length:", geminiFeedback.length);
+    } catch (error) {
+      console.error("Gemini API error details:", {
+        error: error.message,
+        stack: error.stack,
+        response: error.response?.data
+      });
+      throw new Error(`Failed to get AI feedback: ${error.message}`);
+    }
+
+    // Parse Gemini feedback with validation
+    let parsedGeminiFeedback;
+    try {
+      console.log("Parsing Gemini feedback...");
+      parsedGeminiFeedback = parseGeminiFeedback(geminiFeedback);
+      console.log("Parsed feedback structure:", {
+        keys: Object.keys(parsedGeminiFeedback),
+        hasCorrections: Boolean(parsedGeminiFeedback.correctedText),
+        hasAnalysis: Boolean(parsedGeminiFeedback.errorAnalysis)
+      });
+    } catch (error) {
+      console.error("Feedback parsing error details:", {
+        error: error.message,
+        feedback: geminiFeedback?.substring(0, 100) + "..."
+      });
+      throw new Error(`Failed to parse AI feedback: ${error.message}`);
+    }
+
+    // Create text blocks with error handling
+    let blocks;
+    try {
+      console.log("Creating text blocks...");
+      blocks = createTextBlocks(text, parsedGeminiFeedback.correctedText || "");
+      console.log("Text blocks created:", {
+        count: blocks.length,
+        firstBlock: blocks[0]?.text?.substring(0, 50) + "..."
+      });
+    } catch (error) {
+      console.error("Block creation error details:", {
+        error: error.message,
+        originalText: text.substring(0, 100) + "...",
+        correctedText: parsedGeminiFeedback.correctedText?.substring(0, 100) + "..."
+      });
+      throw new Error(`Failed to analyze text structure: ${error.message}`);
+    }
+
+    // Calculate metrics with validation
+    let metrics;
+    try {
+      console.log("Calculating metrics...");
+      metrics = calculateTextMetrics(
+        blocks,
+        parsedGeminiFeedback.errorAnalysis || "",
+        parsedGeminiFeedback.assessment || ""
+      );
+      console.log("Metrics calculated successfully:", Object.keys(metrics));
+    } catch (error) {
+      console.error("Metrics calculation error:", error);
+      // Try fallback metrics calculation
+      metrics = {
+        grammarScore: 70,
+        vocabularyScore: 70,
+        styleConsistencyScore: 70,
+        sentenceVarietyScore: 70,
+        issuesByType: {},
+        issuesBySeverity: {},
+        grammarSubcategories: {},
+        professorFeedback: "Analysis completed with limited metrics."
+      };
+    }
+
+    // Calculate overall score with enhanced fallback
+    let overallScore = 0;
+    try {
+      overallScore = calculateOverallScore(metrics);
+      
+      if (parsedGeminiFeedback.estimatedIELTSBand) {
+        const adjustedScore = Math.round((parsedGeminiFeedback.estimatedIELTSBand / 9) * 100);
+        overallScore = Math.round((overallScore * 0.2) + (adjustedScore * 0.8));
+      }
+      console.log("Score calculated:", { overallScore, ieltsEstimate: parsedGeminiFeedback.estimatedIELTSBand });
+    } catch (error) {
+      console.error("Score calculation error:", error);
+      overallScore = calculateFallbackScore(blocks, metrics);
+    }
+
+    // Return complete analysis result with null instead of undefined for ieltsEstimate
+    return {
+      blocks,
+      metrics: {
+        ...metrics,
+        ieltsEstimate: parsedGeminiFeedback.estimatedIELTSBand || null, // Changed from undefined to null
+        professorFeedback: geminiFeedback || "Analysis completed with limited feedback.",
+      },
+      overallScore,
+      ieltsFeedback: parsedGeminiFeedback.fullFeedback || generateFallbackFeedback(blocks, metrics),
+    };
+
+  } catch (error) {
+    // Enhanced error logging
+    console.error("Text analysis failed:", {
+      error: error.message,
+      stack: error.stack,
+      textLength: text?.length,
+      textSample: text?.substring(0, 100) + "..."
+    });
+    
+    // Return a fallback result with null values instead of undefined
+    return {
+      blocks: [],
+      metrics: {
+        grammarScore: 70,
+        vocabularyScore: 70,
+        styleConsistencyScore: 70,
+        sentenceVarietyScore: 70,
+        issuesByType: {},
+        issuesBySeverity: {},
+        grammarSubcategories: {},
+        ieltsEstimate: null,
+        professorFeedback: "Analysis failed: " + error.message
+      },
+      overallScore: 70,
+      ieltsFeedback: "Analysis could not be completed."
+    };
+  }
+};
+
+// Fallback scoring method if primary scoring fails
+const calculateFallbackScore = (blocks: TextBlock[], metrics: TextMetrics): number => {
+  try {
+    const text = blocks.map(b => b.text).join(' ');
+    const wordCount = text.split(/\s+/).length;
+    const errorCount = blocks.reduce((count, block) => 
+      count + (block.issues?.length || 0), 0);
+    
+    // Basic score calculation
+    let score = 70; // Start with baseline
+    
+    // Deduct points for errors
+    score -= Math.min(30, errorCount * 2);
+    
+    // Adjust for text length
+    if (wordCount < 150) score -= 10;
+    if (wordCount > 350) score -= 5;
+    
+    return Math.max(40, Math.min(100, score));
+  } catch (error) {
+    console.error("Fallback scoring error:", error);
+    return 50; // Ultimate fallback
+  }
+};
+
+// Generate basic feedback if main feedback generation fails
+const generateFallbackFeedback = (blocks: TextBlock[], metrics: TextMetrics): string => {
+  try {
+    const issues = blocks.flatMap(block => block.issues || []);
+    const grammarIssues = issues.filter(i => i.type === 'grammar');
+    const vocabularyIssues = issues.filter(i => i.type === 'vocabulary');
+    
+    let feedback = "## Writing Assessment\n\n";
+    
+    // Basic feedback based on issues found
+    if (grammarIssues.length > 0) {
+      feedback += "**Grammar**: Some grammatical improvements needed. ";
+      feedback += `Found ${grammarIssues.length} grammar-related issues.\n\n`;
+    }
+    
+    if (vocabularyIssues.length > 0) {
+      feedback += "**Vocabulary**: Consider expanding vocabulary range. ";
+      feedback += `Found ${vocabularyIssues.length} vocabulary-related suggestions.\n\n`;
+    }
+    
+    return feedback;
+  } catch (error) {
+    console.error("Fallback feedback generation error:", error);
+    return "Analysis completed. Detailed feedback unavailable.";
+  }
 };
 
 // Create text blocks with analysis
@@ -383,10 +537,9 @@ const calculateTextMetrics = (
   errorAnalysis: string, 
   assessment: string
 ): TextMetrics => {
-  // Collect all issues
   const allIssues = blocks.flatMap(block => block.issues || []);
   
-  // Count issues by type and severity
+  // Enhanced issue tracking
   const issuesByType: Record<IssueType, number> = {
     grammar: 0,
     spelling: 0,
@@ -396,85 +549,68 @@ const calculateTextMetrics = (
     vocabulary: 0
   };
   
-  const issuesBySeverity: Record<IssueSeverity, number> = {
-    critical: 0,
-    major: 0,
-    minor: 0,
-    suggestion: 0
+  // Track subcategories for grammar issues
+  const grammarSubcategories: Record<string, number> = {
+    'subject-verb': 0,
+    'verb-tense': 0,
+    'articles': 0,
+    'prepositions': 0,
+    'word-order': 0,
+    'modals': 0
   };
-  
+
   allIssues.forEach(issue => {
     issuesByType[issue.type] += 1;
-    issuesBySeverity[issue.severity] += 1;
+    
+    // Detailed grammar analysis
+    if (issue.type === 'grammar') {
+      const subCategory = determineGrammarSubcategory(issue);
+      if (subCategory) {
+        grammarSubcategories[subCategory] += 1;
+      }
+    }
   });
+
+  // Calculate text statistics
+  const text = blocks.map(b => b.text).join(' ');
+  const wordCount = text.split(/\s+/).length;
+  const sentenceCount = text.split(/[.!?]+/).length;
   
-  // Calculate total text length
-  const totalText = blocks.reduce((acc, block) => acc + block.text.length, 0);
-  
-  // Calculate baseline scores based on issues found
-  const baselineScore = Math.max(50, 100 - (allIssues.length * 5));
-  
-  // Calculate scores with more balanced logic
-  const grammarScore = calculateScoreForMetric(
-    issuesByType.grammar, 
-    totalText, 
-    3.0, 
-    errorAnalysis.includes("grammar"), 
-    assessment.includes("grammar"),
-    baselineScore
-  );
-  
-  const clarityScore = calculateScoreForMetric(
-    issuesByType.clarity, 
-    totalText, 
-    4.0, 
-    errorAnalysis.includes("unclear") || errorAnalysis.includes("clarity"), 
-    assessment.includes("clear") || assessment.includes("coherent"),
-    baselineScore
-  );
-  
-  const vocabularyScore = calculateScoreForMetric(
-    issuesByType.vocabulary, 
-    totalText, 
-    2.5, 
-    errorAnalysis.includes("vocabulary") || errorAnalysis.includes("word choice"), 
-    assessment.includes("vocabulary") || assessment.includes("lexical"),
-    baselineScore
-  );
-  
-  const styleConsistencyScore = calculateScoreForMetric(
-    issuesByType.style, 
-    totalText, 
-    2.0, 
-    errorAnalysis.includes("style") || errorAnalysis.includes("formal"), 
-    assessment.includes("style") || assessment.includes("consistent"),
-    baselineScore
-  );
-  
-  // Readability includes multiple factors
-  const readabilityScore = calculateReadabilityScore(
-    issuesByType.grammar, 
-    issuesByType.clarity, 
-    issuesByType.punctuation,
-    totalText,
-    assessment,
-    baselineScore
-  );
-  
-  // Sentence variety based on analysis
-  const sentenceVarietyScore = calculateSentenceVarietyScore(blocks, assessment, baselineScore);
-  
+  // Enhanced metrics calculation
   return {
-    readabilityScore,
-    grammarScore,
-    clarityScore,
-    vocabularyScore,
-    styleConsistencyScore,
-    sentenceVarietyScore,
+    readabilityScore: calculateEnhancedReadabilityScore(blocks, wordCount, sentenceCount),
+    grammarScore: calculateDetailedGrammarScore(grammarSubcategories, wordCount),
+    clarityScore: calculateClarityScore(blocks, issuesByType.clarity),
+    vocabularyScore: calculateVocabularyScore(blocks, issuesByType.vocabulary),
+    styleConsistencyScore: calculateStyleScore(blocks, issuesByType.style),
+    sentenceVarietyScore: calculateSentenceVarietyScore(blocks, assessment),
     issuesByType,
-    issuesBySeverity,
-    professorFeedback: "" // This will be filled in by the calling function
+    issuesBySeverity: calculateIssueSeverity(allIssues),
+    grammarSubcategories,
+    professorFeedback: ""
   };
+};
+
+const determineGrammarSubcategory = (issue: TextIssue): string | null => {
+  const original = issue.original.toLowerCase();
+  const suggestion = issue.suggestion.toLowerCase();
+  
+  // Enhanced grammar pattern recognition
+  if (original.endsWith('s') !== suggestion.endsWith('s')) {
+    return 'subject-verb';
+  }
+  if (/ed|ing/.test(original) !== /ed|ing/.test(suggestion)) {
+    return 'verb-tense';
+  }
+  if (/(a|an|the)/.test(original) !== /(a|an|the)/.test(suggestion)) {
+    return 'articles';
+  }
+  if (/in|on|at|to|for|with|by/.test(original) !== /in|on|at|to|for|with|by/.test(suggestion)) {
+    return 'prepositions';
+  }
+  // Add more patterns
+
+  return null;
 };
 
 // Calculate metric score with improved balancing
@@ -489,23 +625,25 @@ const calculateScoreForMetric = (
   // Prevent division by zero and ensure minimum text length
   const effectiveLength = Math.max(textLength, 100);
   
-  // Base score calculation with better scaling for text length
-  let score = baselineScore - Math.min(30, (issues * weight * 100) / effectiveLength);
+  // More aggressive penalty for issues based on text length
+  const issueDensity = (issues / effectiveLength) * 1000; // Issues per 1000 characters
   
-  // Adjust based on explicit mentions in feedback
+  // Base score calculation with stricter scaling
+  let score = baselineScore - Math.min(40, (issueDensity * weight));
+  
+  // More significant adjustments based on feedback
   if (mentionedInErrors) {
-    score = Math.max(40, score - 10);
+    score = Math.max(30, score - 15);
   }
   
   if (mentionedPositively) {
-    score = Math.min(95, score + 10);
+    score = Math.min(90, score + 8); // Cap positive adjustments lower
   }
   
-  // Add small random factor for natural variation
-  const randomFactor = Math.random() * 3 - 1.5; // -1.5 to +1.5
+  // Small random variation for natural results
+  const randomFactor = Math.random() * 2 - 1; // -1 to +1
   
-  // Ensure minimum score
-  return Math.max(40, Math.min(100, Math.round(score + randomFactor)));
+  return Math.max(30, Math.min(95, Math.round(score + randomFactor)));
 };
 
 // Calculate readability score
@@ -517,30 +655,37 @@ const calculateReadabilityScore = (
   assessment: string,
   baselineScore: number
 ): number => {
-  // Base readability calculation with minimum floor
-  const baseReadability = baselineScore - Math.min(30, (grammarIssues * 2.5 + clarityIssues * 3 + punctuationIssues) * (100 / Math.max(textLength, 100)));
+  const effectiveLength = Math.max(textLength, 100);
   
-  // Adjust based on assessment keywords
+  // Calculate issue density per 1000 characters
+  const issueDensity = ((grammarIssues * 2 + clarityIssues * 1.5 + punctuationIssues) / effectiveLength) * 1000;
+  
+  // More aggressive base readability calculation
+  const baseReadability = Math.max(40, 
+    baselineScore - Math.min(35, issueDensity * 2.5)
+  );
+  
   let adjustedScore = baseReadability;
+  const assessmentLower = assessment.toLowerCase();
   
-  if (assessment.toLowerCase().includes("cohesive") || assessment.toLowerCase().includes("coherent")) {
-    adjustedScore += 8;
-  }
-  
-  if (assessment.toLowerCase().includes("clear") || assessment.toLowerCase().includes("well-structured")) {
+  // More nuanced assessment adjustments
+  if (assessmentLower.includes("excellent") || assessmentLower.includes("outstanding")) {
+    adjustedScore += 10;
+  } else if (assessmentLower.includes("good") || assessmentLower.includes("well")) {
     adjustedScore += 5;
-  }
-  
-  if (assessment.toLowerCase().includes("difficult to follow") || assessment.toLowerCase().includes("lacks clarity")) {
+  } else if (assessmentLower.includes("average") || assessmentLower.includes("fair")) {
+    adjustedScore -= 5;
+  } else if (assessmentLower.includes("poor") || assessmentLower.includes("weak")) {
     adjustedScore -= 10;
   }
   
-  if (assessment.toLowerCase().includes("confusing") || assessment.toLowerCase().includes("unclear")) {
-    adjustedScore -= 8;
-  }
+  // Additional penalties for specific issues
+  if (assessmentLower.includes("difficult to follow")) adjustedScore -= 12;
+  if (assessmentLower.includes("confusing")) adjustedScore -= 15;
+  if (assessmentLower.includes("incoherent")) adjustedScore -= 20;
   
-  // Ensure minimum score
-  return Math.max(40, Math.min(100, Math.round(adjustedScore)));
+  // Cap maximum score more strictly
+  return Math.max(30, Math.min(92, Math.round(adjustedScore)));
 };
 
 // Calculate sentence variety score
@@ -549,61 +694,96 @@ const calculateSentenceVarietyScore = (
   assessment: string,
   baselineScore: number
 ): number => {
-  // Get all text
   const allText = blocks.map(block => block.text).join(" ");
-  
-  // Count sentences by splitting on typical sentence endings
   const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 0);
   
-  if (sentences.length < 2) {
-    return Math.max(60, baselineScore - 10); // Default score if very few sentences
+  if (sentences.length < 3) {
+    return Math.max(40, baselineScore - 20); // Larger penalty for very short texts
   }
   
-  // Calculate average sentence length and variation
-  const avgLength = sentences.reduce((sum, s) => sum + s.trim().length, 0) / sentences.length;
+  // Calculate sentence length statistics
+  const lengths = sentences.map(s => s.trim().length);
+  const avgLength = lengths.reduce((sum, len) => sum + len, 0) / lengths.length;
+  const stdDev = Math.sqrt(
+    lengths.reduce((sum, len) => sum + Math.pow(len - avgLength, 2), 0) / lengths.length
+  );
   
-  // Calculate variety based on length differences
-  const lengthVariation = sentences.reduce((sum, s) => {
-    return sum + Math.abs(s.trim().length - avgLength);
-  }, 0) / sentences.length;
+  // Score based on length variation (standard deviation)
+  let varietyScore = baselineScore;
   
-  // More balanced variety score
-  let varietyScore = baselineScore + Math.min(15, lengthVariation / 3);
-  
-  // Adjust based on assessment
-  if (assessment.toLowerCase().includes("varied sentence") || assessment.toLowerCase().includes("good variety")) {
-    varietyScore += 8;
+  // Penalize both too little and too much variation
+  if (stdDev < 10) {
+    varietyScore -= 15; // Too monotonous
+  } else if (stdDev > 40) {
+    varietyScore -= 10; // Too erratic
+  } else if (stdDev >= 15 && stdDev <= 30) {
+    varietyScore += 5; // Ideal range
   }
   
-  if (assessment.toLowerCase().includes("repetitive") || assessment.toLowerCase().includes("monotonous")) {
-    varietyScore -= 10;
+  // Analyze sentence beginnings
+  const beginnings = sentences.map(s => s.trim().split(' ')[0].toLowerCase());
+  const uniqueBeginnings = new Set(beginnings).size;
+  const beginningVariety = uniqueBeginnings / sentences.length;
+  
+  if (beginningVariety < 0.4) varietyScore -= 10; // Too repetitive starts
+  if (beginningVariety > 0.7) varietyScore += 5; // Good variety
+  
+  // Assessment-based adjustments
+  const assessmentLower = assessment.toLowerCase();
+  if (assessmentLower.includes("monotonous") || assessmentLower.includes("repetitive")) {
+    varietyScore -= 15;
+  }
+  if (assessmentLower.includes("varied") || assessmentLower.includes("diverse")) {
+    varietyScore = Math.min(90, varietyScore + 8);
   }
   
-  return Math.max(40, Math.min(100, Math.round(varietyScore)));
+  return Math.max(30, Math.min(90, Math.round(varietyScore)));
 };
 
 // Calculate overall score from metrics with more weight on critical aspects
 const calculateOverallScore = (metrics: TextMetrics): number => {
-  return Math.round(
-    (
-      metrics.readabilityScore * 0.15 +
-      metrics.grammarScore * 0.30 + // Increased weight for grammar
-      metrics.clarityScore * 0.25 + // Increased weight for clarity
-      metrics.styleConsistencyScore * 0.15 +
-      metrics.vocabularyScore * 0.15
-    )
+  // More balanced weighting system
+  const weights = {
+    grammar: 0.25,      // Critical for accuracy
+    clarity: 0.25,      // Essential for communication
+    readability: 0.20,  // Important for flow
+    vocabulary: 0.15,   // Word choice importance
+    style: 0.15        // Writing style consistency
+  };
+
+  const weightedScore = Math.round(
+    metrics.grammarScore * weights.grammar +
+    metrics.clarityScore * weights.clarity +
+    metrics.readabilityScore * weights.readability +
+    metrics.vocabularyScore * weights.vocabulary +
+    metrics.styleConsistencyScore * weights.style
   );
+
+  // Apply penalties for very low scores in critical areas
+  let finalScore = weightedScore;
+  if (metrics.grammarScore < 50) {
+    finalScore = Math.max(30, finalScore - 15);
+  }
+  if (metrics.clarityScore < 50) {
+    finalScore = Math.max(30, finalScore - 10);
+  }
+
+  // Cap maximum score more strictly
+  return Math.min(95, Math.max(30, finalScore));
 };
 
 // Format a score for display with an appropriate label
 export const getScoreLabel = (score: number): { color: string; label: string } => {
-  if (score >= 90) return { color: 'text-green-500', label: 'Excellent' };
+  if (score >= 90) return { color: 'text-green-500', label: 'Outstanding' };
+  if (score >= 85) return { color: 'text-green-500', label: 'Excellent' };
   if (score >= 80) return { color: 'text-green-400', label: 'Very Good' };
-  if (score >= 70) return { color: 'text-lime-500', label: 'Good' };
-  if (score >= 60) return { color: 'text-yellow-500', label: 'Satisfactory' };
-  if (score >= 50) return { color: 'text-amber-500', label: 'Needs Improvement' };
-  if (score >= 40) return { color: 'text-orange-500', label: 'Poor' };
-  return { color: 'text-red-500', label: 'Critical Issues' };
+  if (score >= 75) return { color: 'text-green-400', label: 'Good' };
+  if (score >= 70) return { color: 'text-yellow-500', label: 'Above Average' };
+  if (score >= 65) return { color: 'text-yellow-500', label: 'Satisfactory' };
+  if (score >= 60) return { color: 'text-yellow-400', label: 'Fair' };
+  if (score >= 50) return { color: 'text-orange-500', label: 'Needs Improvement' };
+  if (score >= 40) return { color: 'text-red-400', label: 'Poor' };
+  return { color: 'text-red-500', label: 'Very Poor' };
 };
 
 // Export corrected text
@@ -675,5 +855,183 @@ export const exportAnalysisReport = (
   report += `## Corrected Text\n\n${exportCorrectedText(blocks)}\n\n`;
   
   return report;
+};
+
+const generateIELTSFeedback = (
+  blocks: TextBlock[],
+  metrics: TextMetrics,
+  overallScore: number
+): string => {
+  const allIssues = blocks.flatMap(block => block.issues || []);
+  const grammarIssues = allIssues.filter(i => i.type === 'grammar');
+  const vocabularyIssues = allIssues.filter(i => i.type === 'vocabulary');
+  const cohesionIssues = allIssues.filter(i => i.type === 'clarity');
+
+  // Calculate IELTS-specific subscores
+  const taskAchievement = Math.min(9, (overallScore / 100) * 9);
+  const coherenceCohesion = calculateCoherenceScore(blocks, cohesionIssues);
+  const lexicalResource = calculateLexicalScore(blocks, vocabularyIssues);
+  const grammaticalRange = calculateGrammaticalScore(blocks, grammarIssues);
+
+  // Generate concise, focused feedback
+  let feedback = '## IELTS Writing Assessment\n\n';
+
+  // Task Achievement
+  feedback += '**Task Achievement**: ';
+  feedback += `${taskAchievement.toFixed(1)} - `;
+  feedback += generateTaskAchievementFeedback(taskAchievement, blocks);
+
+  // Coherence and Cohesion
+  feedback += '\n\n**Coherence & Cohesion**: ';
+  feedback += `${coherenceCohesion.toFixed(1)} - `;
+  feedback += generateCoherenceFeedback(coherenceCohesion, cohesionIssues);
+
+  // Lexical Resource
+  feedback += '\n\n**Lexical Resource**: ';
+  feedback += `${lexicalResource.toFixed(1)} - `;
+  feedback += generateLexicalFeedback(lexicalResource, vocabularyIssues);
+
+  // Grammatical Range and Accuracy
+  feedback += '\n\n**Grammatical Range**: ';
+  feedback += `${grammaticalRange.toFixed(1)} - `;
+  feedback += generateGrammaticalFeedback(grammaticalRange, grammarIssues);
+
+  // Key Areas for Improvement
+  feedback += '\n\n## Key Areas for Improvement\n';
+  const improvements = generateKeyImprovements(allIssues);
+  improvements.forEach(imp => {
+    feedback += `* ${imp}\n`;
+  });
+
+  return feedback;
+};
+
+const calculateGrammaticalScore = (blocks: TextBlock[], grammarIssues: TextIssue[]): number => {
+  const text = blocks.map(b => b.text).join(' ');
+  const wordCount = text.split(/\s+/).length;
+  
+  // Calculate error density (per 100 words)
+  const errorDensity = (grammarIssues.length / wordCount) * 100;
+  
+  // Analyze grammar complexity
+  const complexStructures = countComplexStructures(text);
+  const varietyScore = calculateGrammaticalVariety(text);
+  
+  // More strict scoring for grammar
+  let score = 9;
+  if (errorDensity > 0.5) score -= 1;
+  if (errorDensity > 1) score -= 1.5;
+  if (errorDensity > 2) score -= 2;
+  if (errorDensity > 3) score -= 2.5;
+  
+  // Bonus for complex structures
+  score += Math.min(1, complexStructures * 0.2);
+  
+  // Penalty for lack of variety
+  if (varietyScore < 0.6) score -= 1;
+  
+  return Math.max(4, Math.min(9, score));
+};
+
+const generateGrammaticalFeedback = (score: number, issues: TextIssue[]): string => {
+  const commonErrors = categorizeGrammarErrors(issues);
+  let feedback = '';
+
+  if (score >= 8) {
+    feedback = 'Uses a wide range of structures with flexibility and accuracy. Minor errors in complex structures only.';
+  } else if (score >= 7) {
+    feedback = 'Uses a variety of complex structures. Some errors in complex sentences, but meaning clear.';
+  } else if (score >= 6) {
+    feedback = 'Mix of complex and simple structures. Frequent errors but meaning generally clear.';
+  } else {
+    feedback = 'Limited range of structures with frequent errors that obscure meaning.';
+  }
+
+  // Add specific error patterns
+  if (commonErrors.length > 0) {
+    feedback += '\nCommon errors include: ' + commonErrors.slice(0, 3).join(', ');
+  }
+
+  return feedback;
+};
+
+const categorizeGrammarErrors = (issues: TextIssue[]): string[] => {
+  const patterns: Record<string, number> = {};
+  
+  issues.forEach(issue => {
+    // Analyze error patterns
+    if (issue.original.toLowerCase() !== issue.suggestion.toLowerCase()) {
+      if (issue.original.endsWith('s') && !issue.suggestion.endsWith('s')) {
+        patterns['subject-verb agreement'] = (patterns['subject-verb agreement'] || 0) + 1;
+      }
+      if (issue.original.includes('the') !== issue.suggestion.includes('the')) {
+        patterns['article usage'] = (patterns['article usage'] || 0) + 1;
+      }
+      if (/ed|ing/.test(issue.original) !== /ed|ing/.test(issue.suggestion)) {
+        patterns['verb tense'] = (patterns['verb tense'] || 0) + 1;
+      }
+      // Add more pattern recognition here
+    }
+  });
+
+  return Object.entries(patterns)
+    .sort(([,a], [,b]) => b - a)
+    .map(([pattern]) => pattern);
+};
+
+const generateDetailedIssueExplanation = (issue: TextIssue): string => {
+  let explanation = '';
+  
+  switch (issue.type) {
+    case 'grammar':
+      explanation = generateGrammarExplanation(issue);
+      break;
+    case 'vocabulary':
+      explanation = generateVocabularyExplanation(issue);
+      break;
+    case 'clarity':
+      explanation = generateClarityExplanation(issue);
+      break;
+    // Add other cases
+  }
+
+  return explanation;
+};
+
+const generateGrammarExplanation = (issue: TextIssue): string => {
+  const original = issue.original.toLowerCase();
+  const suggestion = issue.suggestion.toLowerCase();
+
+  // More detailed grammar explanations
+  if (original.endsWith('s') !== suggestion.endsWith('s')) {
+    return `Subject-verb agreement error. The verb should ${suggestion.endsWith('s') ? 'match' : 'not match'} the subject's number.`;
+  }
+  if (/ed|ing/.test(original) !== /ed|ing/.test(suggestion)) {
+    return `Incorrect verb tense. Use ${/ed/.test(suggestion) ? 'past tense' : 'present participle'} in this context.`;
+  }
+  // Add more specific grammar explanations
+
+  return issue.explanation;
+};
+
+// Make sure this is exported and at the top of the file
+export const calculateEnhancedReadabilityScore = (
+  blocks: TextBlock[],
+  wordCount: number,
+  sentenceCount: number
+): number => {
+  try {
+    const avgWordsPerSentence = wordCount / Math.max(1, sentenceCount);
+    let score = 100;
+    
+    if (avgWordsPerSentence > 25) score -= 10;
+    if (avgWordsPerSentence < 8) score -= 5;
+    if (blocks.length < 2) score -= 10;
+    
+    return Math.max(0, Math.min(100, score));
+  } catch (error) {
+    console.error("Readability calculation error:", error);
+    return 70;
+  }
 };
 

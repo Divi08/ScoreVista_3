@@ -36,6 +36,10 @@ const ImageUploader = ({ onTextExtracted }: ImageUploaderProps) => {
       toast.info("Processing your document with AI...");
       const extractedText = await extractTextFromImage(file);
       
+      // Add debug logging
+      console.log("Extracted text length:", extractedText?.length);
+      console.log("First 100 chars:", extractedText?.substring(0, 100));
+      
       if (!extractedText || extractedText.trim() === '') {
         toast.warning("No text could be detected in your document");
         onTextExtracted(""); // Pass empty string to parent

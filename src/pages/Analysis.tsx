@@ -21,7 +21,10 @@ const Analysis = () => {
   const [inputMethod, setInputMethod] = useState<string>("image");
 
   const handleAnalyzeText = async (text: string) => {
-    if (!text.trim()) {
+    // Add debug logging
+    console.log("Attempting to analyze text:", text?.substring(0, 100));
+    
+    if (!text?.trim()) {
       toast.error("No text to analyze. Please upload an image or paste text first.");
       return;
     }
@@ -33,7 +36,7 @@ const Analysis = () => {
       const result = await analyzeText(text);
       setAnalysisResult(result);
       
-      // Save analysis to Firebase
+      // Save analysis to Firebase only if user is logged in
       if (currentUser) {
         await saveAnalysisResult(currentUser.uid, {
           originalText: text,

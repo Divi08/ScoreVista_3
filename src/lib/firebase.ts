@@ -22,7 +22,8 @@ import {
   Timestamp,
   DocumentData,
   orderBy,
-  limit
+  limit,
+  deleteDoc
 } from "firebase/firestore";
 
 // Firebase configuration
@@ -403,6 +404,16 @@ export const getUserReadingPractices = async (userId: string) => {
     return practices;
   } catch (error) {
     console.error("Error getting reading practices:", error);
+    throw error;
+  }
+};
+
+export const deleteReadingPractice = async (userId: string, practiceId: string) => {
+  try {
+    const practiceRef = doc(db, "users", userId, "readingPractices", practiceId);
+    await deleteDoc(practiceRef);
+  } catch (error) {
+    console.error("Error deleting reading practice:", error);
     throw error;
   }
 };
