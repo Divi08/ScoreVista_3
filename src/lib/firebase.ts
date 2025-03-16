@@ -161,7 +161,6 @@ export const updateWeeklyProgress = async (userId: string) => {
 // Function to save text analysis results to user's history
 export const saveAnalysisResult = async (userId: string, analysisData: any) => {
   try {
-    // Create a new document in the analyses collection
     const analysesCollectionRef = collection(db, "users", userId, "analyses");
     const newAnalysisRef = doc(analysesCollectionRef);
     
@@ -173,19 +172,21 @@ export const saveAnalysisResult = async (userId: string, analysisData: any) => {
     
     await setDoc(newAnalysisRef, analysisWithId);
     
-    // Update user's analysis count and recent activity
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
     
     if (userDoc.exists()) {
       const userData = userDoc.data();
       
-      // Calculate new average score
-      const currentAverage = userData.averageScore || 0;
-      const analysisCount = userData.analysisCount || 0;
-      const newAverage = analysisCount > 0 
-        ? ((currentAverage * analysisCount) + analysisData.overallScore) / (analysisCount + 1)
-        : analysisData.overallScore;
+      // Calculate new average IELTS score
+      let newIeltsAverage = userData.averageScore || 0;
+      if (analysisData.metrics?.ieltsEstimate) {
+        const currentIeltsAverage = userData.averageScore || 0;
+        const analysisCount = userData.analysisCount || 0;
+        newIeltsAverage = analysisCount > 0 
+          ? ((currentIeltsAverage * analysisCount) + analysisData.metrics.ieltsEstimate) / (analysisCount + 1)
+          : analysisData.metrics.ieltsEstimate;
+      }
       
       // Update recent activity
       const recentActivity = userData.recentActivity || [];
@@ -194,6 +195,7 @@ export const saveAnalysisResult = async (userId: string, analysisData: any) => {
         type: 'analysis',
         title: analysisData.title || 'Text Analysis',
         score: analysisData.overallScore,
+        ieltsScore: analysisData.metrics?.ieltsEstimate,
         createdAt: Timestamp.now()
       });
       
@@ -203,12 +205,12 @@ export const saveAnalysisResult = async (userId: string, analysisData: any) => {
       }
       
       await updateDoc(userDocRef, {
-        analysisCount: (analysisCount || 0) + 1,
-        averageScore: parseFloat(newAverage.toFixed(1)),
+        analysisCount: (userData.analysisCount || 0) + 1,
+        exercisesCompleted: (userData.exercisesCompleted || 0) + 1,
+        averageScore: parseFloat(newIeltsAverage.toFixed(1)),
         recentActivity: recentActivity,
       });
       
-      // Update weekly progress
       await updateWeeklyProgress(userId);
     }
     
@@ -414,6 +416,33 @@ export const deleteReadingPractice = async (userId: string, practiceId: string) 
     await deleteDoc(practiceRef);
   } catch (error) {
     console.error("Error deleting reading practice:", error);
+    throw error;
+  }
+};
+
+export const resetUserData = async (userId: string) => {
+  try {
+    // Get reference to user's analyses collection
+    const analysesRef = collection(db, "users", userId, "analyses");
+    
+    // Delete all analyses documents
+    const analysesSnapshot = await getDocs(analysesRef);
+    const deletionPromises = analysesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletionPromises);
+    
+    // Reset user profile data
+    const userDocRef = doc(db, "users", userId);
+    await updateDoc(userDocRef, {
+      analysisCount: 0,
+      exercisesCompleted: 0,
+      weeklyProgress: 0,
+      averageScore: 0,
+      recentActivity: [],
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error resetting user data:", error);
     throw error;
   }
 };

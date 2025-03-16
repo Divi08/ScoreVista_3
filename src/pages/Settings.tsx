@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { updateUserProfile } from "@/lib/firebase";
+import { updateUserProfile, resetUserData } from "@/lib/firebase";
 import { toast } from "sonner";
 import { 
   Card, 
@@ -41,6 +41,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import DarkModeToggle from "@/components/DarkModeToggle";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const profileFormSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters."),
@@ -234,6 +235,61 @@ const Settings = () => {
                     >
                       Change Password
                     </Button>
+                  </div>
+                  <div className="mt-6 pt-6 border-t">
+                    <h3 className="text-sm font-medium">Reset Data</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Delete all your saved analyses and reset your progress
+                    </p>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="destructive" 
+                          className="mt-2"
+                        >
+                          Reset All Data
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete all your saved analyses
+                            and reset all your progress data including scores, statistics, and activity history.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              if (!currentUser) return;
+                              
+                              setIsUpdating(true);
+                              try {
+                                await resetUserData(currentUser.uid);
+                                await refreshUserProfile();
+                                toast.success("All data has been reset successfully");
+                              } catch (error) {
+                                console.error("Error resetting data:", error);
+                                toast.error("Failed to reset data");
+                              } finally {
+                                setIsUpdating(false);
+                              }
+                            }}
+                            className="bg-destructive hover:bg-destructive/90"
+                          >
+                            {isUpdating ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Resetting...
+                              </>
+                            ) : (
+                              "Reset All Data"
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardContent>

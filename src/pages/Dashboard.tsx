@@ -156,10 +156,10 @@ const Dashboard = () => {
           <CardContent>
             <div className="flex items-baseline">
               <div className="text-3xl font-bold">
-                {userProfile?.averageScore || "N/A"}
+                {userProfile?.averageScore ? userProfile.averageScore.toFixed(1) : "N/A"}
               </div>
               <div className="text-sm text-muted-foreground ml-2">
-                /{userProfile?.targetScore || 9.0}
+                /{userProfile?.targetScore || 7.0}
               </div>
             </div>
             <div className="text-xs text-muted-foreground">
