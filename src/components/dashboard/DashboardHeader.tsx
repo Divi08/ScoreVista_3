@@ -32,13 +32,12 @@ const DashboardHeader = () => {
   return (
     <header className="bg-card border-b h-16 flex items-center px-6">
       <div className="flex-1 flex items-center">
-        <div 
-          className="relative w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden mr-2 cursor-pointer"
+        <img 
+          src="/logo.png" 
+          alt="ScoreVista Logo" 
+          className="w-10 h-10 object-contain cursor-pointer mr-2"
           onClick={() => navigate("/dashboard")}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/10 backdrop-blur-sm" />
-          <span className="text-xl font-bold text-primary relative z-10">S</span>
-        </div>
+        />
         <h1 
           className="text-xl font-medium tracking-tight cursor-pointer"
           onClick={() => navigate("/dashboard")}
