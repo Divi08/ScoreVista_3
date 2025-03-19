@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
 // Gemini API key
-const GEMINI_API_KEY = "AIzaSyB1I9CJYdw69ZvPHMNt9vmdlTiuc90MEmc";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Fix the API endpoint to use the correct model name
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent";
 
