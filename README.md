@@ -3,7 +3,9 @@
 <div align="center">
   <img src="public/logo.png" alt="ScoreVista Logo" width="200"/>
   <p><strong>AI-Powered IELTS Preparation & Assessment Platform</strong></p>
+  <p><a href="https://scorevista3.vercel.app/" target="_blank">https://scorevista3.vercel.app/</a></p>
 </div>
+
 
 ## 📋 Table of Contents
 - [Overview](#overview)
