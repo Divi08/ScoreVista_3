@@ -4,9 +4,7 @@
   <img src="public/logo.png" alt="ScoreVista Logo" width="200"/>
   <p><strong>AI-Powered IELTS Preparation & Assessment Platform</strong></p>
   
-  <a href="https://scorevista3.vercel.app/" target="_blank">
-    <img src="https://img.shields.io/badge/Website-ScoreVista-blue?style=for-the-badge&logo=vercel" alt="ScoreVista Website"/>
-  </a>
+
   
   <br/>
   <a href="https://scorevista3.vercel.app/" target="_blank">
