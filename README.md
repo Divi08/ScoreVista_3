@@ -184,9 +184,7 @@ npm run build
 npm run preview
 ```
 
-## 🤝 Contributing
 
-This is a private repository. Please contact the repository owner for contribution guidelines.
 
 ## 📄 License
 
